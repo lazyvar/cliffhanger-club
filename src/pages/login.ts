@@ -13,21 +13,19 @@ export function loginPage(members: Member[], error?: string, selectedUser?: stri
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - Cliffhanger Club</title>
+  <link rel="icon" type="image/png" href="/images/logo.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <div class="login-page">
     <div class="login-header">
-      <h1>Cliffhanger Club</h1>
-      <p>Who's reading today?</p>
+      <img src="/images/logo.png" alt="Cliffhanger Club" class="login-logo">
+      <h1 class="login-title">Cliffhanger Club</h1>
     </div>
 
     <div class="member-grid">
       ${members.map(member => `
-        <div class="member-card" onclick="selectMember('${member.username}')">
-          <img src="${member.avatar_url}" alt="${member.display_name}" class="member-avatar">
-          <div class="member-name">${member.display_name}</div>
-        </div>
+        <img src="${member.avatar_url}" alt="${member.display_name}" class="member-avatar" onclick="selectMember('${member.username}')">
       `).join('')}
     </div>
   </div>

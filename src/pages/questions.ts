@@ -61,14 +61,14 @@ export function questionsPage(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Year in Review - Cliffhanger Club</title>
+  <link rel="icon" type="image/png" href="/images/logo.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <nav class="navbar">
-    <div class="nav-brand">
-      <span class="nav-brand-icon">📚</span>
-      Cliffhanger Club
-    </div>
+    <a href="/" class="nav-brand">
+      <img src="/images/logo.png" alt="Cliffhanger Club" class="nav-logo">
+    </a>
     <div class="nav-links">
       <a href="/" class="nav-link">Home</a>
       <a href="/books" class="nav-link">Books</a>

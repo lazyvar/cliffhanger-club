@@ -1,6 +1,7 @@
 name = "book-club-wrapped"
 main = "src/index.ts"
 compatibility_date = "2024-05-12"
+assets = { directory = "public" }
 
 [[d1_databases]]
 binding = "DB"

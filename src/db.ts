@@ -103,6 +103,65 @@ export async function toggleWrappedVisibility(db: D1Database): Promise<boolean> 
   return newValue;
 }
 
+// Book interface
+export interface Book {
+  id: number;
+  title: string;
+  author: string;
+  cover_url: string | null;
+  added_by: number;
+  read_date: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface BookWithUser extends Book {
+  added_by_name: string;
+  added_by_avatar: string;
+}
+
+// Get all books
+export async function getBooks(db: D1Database): Promise<BookWithUser[]> {
+  const result = await db.prepare(`
+    SELECT b.*, u.display_name as added_by_name, u.avatar_url as added_by_avatar
+    FROM books b
+    JOIN users u ON u.id = b.added_by
+    ORDER BY b.id DESC
+  `).all<BookWithUser>();
+  return result.results || [];
+}
+
+// Get single book by ID
+export async function getBookById(db: D1Database, id: number): Promise<BookWithUser | null> {
+  const result = await db.prepare(`
+    SELECT b.*, u.display_name as added_by_name, u.avatar_url as added_by_avatar
+    FROM books b
+    JOIN users u ON u.id = b.added_by
+    WHERE b.id = ?
+  `).bind(id).first<BookWithUser>();
+  return result || null;
+}
+
+// Get books by user
+export async function getBooksByUser(db: D1Database, username: string): Promise<Book[]> {
+  const result = await db.prepare(`
+    SELECT b.*
+    FROM books b
+    JOIN users u ON u.id = b.added_by
+    WHERE u.username = ?
+    ORDER BY b.id DESC
+  `).bind(username).all<Book>();
+  return result.results || [];
+}
+
+// Get user by username
+export async function getUserByUsername(db: D1Database, username: string): Promise<Member | null> {
+  const result = await db.prepare(
+    'SELECT username, display_name, avatar_url FROM users WHERE username = ?'
+  ).bind(username).first<Member>();
+  return result || null;
+}
+
 // Get completion status for all users
 export async function getCompletionStatus(db: D1Database): Promise<{ username: string; display_name: string; avatar_url: string; answered: number; total: number }[]> {
   const result = await db.prepare(`

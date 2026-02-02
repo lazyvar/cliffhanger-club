@@ -20,6 +20,10 @@ import {
   isWrappedVisible,
   toggleWrappedVisibility,
   getCompletionStatus,
+  getBooks,
+  getBookById,
+  getBooksByUser,
+  getUserByUsername,
 } from './db';
 import { loginPage } from './pages/login';
 import { dashboardPage } from './pages/dashboard';
@@ -35,24 +39,9 @@ type Variables = {
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Serve CSS
+// Serve CSS (static assets like images are served automatically from public/)
 app.get('/styles.css', (c) => {
   return c.text(styles, 200, { 'Content-Type': 'text/css' });
-});
-
-// Serve placeholder avatars (returns a simple SVG)
-app.get('/avatars/:name', (c) => {
-  const name = c.req.param('name').replace('.jpg', '');
-  const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b'];
-  const color = colors[name.charCodeAt(0) % colors.length];
-  const initial = name.charAt(0).toUpperCase();
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-    <rect width="200" height="200" fill="${color}"/>
-    <text x="100" y="120" font-family="system-ui, sans-serif" font-size="80" font-weight="bold" fill="white" text-anchor="middle">${initial}</text>
-  </svg>`;
-
-  return c.body(svg, 200, { 'Content-Type': 'image/svg+xml' });
 });
 
 // Apply auth middleware to all routes
@@ -117,10 +106,11 @@ app.get('/logout', async (c) => {
   return c.redirect('/login');
 });
 
-// Books page (placeholder for now)
+// Books page
 app.get('/books', requireAuth(), async (c) => {
   const user = c.get('user')!;
   const isAdmin = user.username === 'mack';
+  const books = await getBooks(c.env.DB);
 
   return c.html(`<!DOCTYPE html>
 <html lang="en">
@@ -128,14 +118,14 @@ app.get('/books', requireAuth(), async (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Books - Cliffhanger Club</title>
+  <link rel="icon" type="image/png" href="/images/logo.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <nav class="navbar">
-    <div class="nav-brand">
-      <span class="nav-brand-icon">📚</span>
-      Cliffhanger Club
-    </div>
+    <a href="/" class="nav-brand">
+      <img src="/images/logo.png" alt="Cliffhanger Club" class="nav-logo">
+    </a>
     <div class="nav-links">
       <a href="/" class="nav-link">Home</a>
       <a href="/books" class="nav-link active">Books</a>
@@ -151,15 +141,146 @@ app.get('/books', requireAuth(), async (c) => {
   <div class="container">
     <div class="page-header">
       <h1>Our Books</h1>
-      <p>Books we've read and are planning to read</p>
+      <p>${books.length} books read together</p>
     </div>
 
-    <div class="locked-card">
-      <div class="locked-icon">📖</div>
-      <h1>Coming Soon</h1>
-      <p>The books section is under construction. Check back soon!</p>
-      <a href="/" class="btn btn-primary">Back to Dashboard</a>
+    <div class="books-list">
+      ${books.map(book => `
+        <div class="book-card-wrapper">
+          <a href="/books/${book.id}" class="book-card">
+            <div class="book-info">
+              <div class="book-title">${book.title}</div>
+              <div class="book-author">${book.author}</div>
+            </div>
+          </a>
+          <a href="/profile/${book.added_by_name.toLowerCase()}" class="book-picker">
+            <img src="${book.added_by_avatar}" alt="${book.added_by_name}" class="book-picker-avatar">
+          </a>
+        </div>
+      `).join('')}
     </div>
+  </div>
+</body>
+</html>`);
+});
+
+// Book detail page
+app.get('/books/:id', requireAuth(), async (c) => {
+  const user = c.get('user')!;
+  const isAdmin = user.username === 'mack';
+  const bookId = parseInt(c.req.param('id'));
+  const book = await getBookById(c.env.DB, bookId);
+
+  if (!book) {
+    return c.redirect('/books');
+  }
+
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${book.title} - Cliffhanger Club</title>
+  <link rel="icon" type="image/png" href="/images/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <img src="/images/logo.png" alt="Cliffhanger Club" class="nav-logo">
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/books" class="nav-link active">Books</a>
+      <a href="/wrapped" class="nav-link">Wrapped</a>
+      ${isAdmin ? '<a href="/admin" class="nav-link">Admin</a>' : ''}
+      <div class="nav-user">
+        <img src="${user.avatar_url}" alt="${user.display_name}" class="nav-avatar">
+        <a href="/logout" class="nav-link">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <a href="/books" class="back-link">← Back to Books</a>
+
+    <div class="book-detail">
+      <h1 class="book-detail-title">${book.title}</h1>
+      <p class="book-detail-author">by ${book.author}</p>
+
+      <a href="/profile/${book.added_by_name.toLowerCase()}" class="book-detail-picker">
+        <img src="${book.added_by_avatar}" alt="${book.added_by_name}" class="book-detail-avatar">
+        <span>Picked by ${book.added_by_name}</span>
+      </a>
+    </div>
+  </div>
+</body>
+</html>`);
+});
+
+// Profile page
+app.get('/profile/:username', requireAuth(), async (c) => {
+  const user = c.get('user')!;
+  const isAdmin = user.username === 'mack';
+  const username = c.req.param('username').toLowerCase();
+  const profile = await getUserByUsername(c.env.DB, username);
+
+  if (!profile) {
+    return c.redirect('/');
+  }
+
+  const picks = await getBooksByUser(c.env.DB, username);
+
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${profile.display_name} - Cliffhanger Club</title>
+  <link rel="icon" type="image/png" href="/images/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="nav-brand">
+      <img src="/images/logo.png" alt="Cliffhanger Club" class="nav-logo">
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/books" class="nav-link">Books</a>
+      <a href="/wrapped" class="nav-link">Wrapped</a>
+      ${isAdmin ? '<a href="/admin" class="nav-link">Admin</a>' : ''}
+      <div class="nav-user">
+        <img src="${user.avatar_url}" alt="${user.display_name}" class="nav-avatar">
+        <a href="/logout" class="nav-link">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="profile-header">
+      <img src="${profile.avatar_url}" alt="${profile.display_name}" class="profile-avatar">
+      <h1 class="profile-name">${profile.display_name}</h1>
+      <p class="profile-stats">${picks.length} book${picks.length !== 1 ? 's' : ''} picked</p>
+    </div>
+
+    ${picks.length > 0 ? `
+    <div class="profile-section">
+      <h2>Picks</h2>
+      <div class="books-list">
+        ${picks.map(book => `
+          <a href="/books/${book.id}" class="book-card">
+            <div class="book-info">
+              <div class="book-title">${book.title}</div>
+              <div class="book-author">${book.author}</div>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+    ` : `
+    <p class="profile-empty">No picks yet</p>
+    `}
   </div>
 </body>
 </html>`);
